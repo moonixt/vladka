@@ -382,18 +382,18 @@ function getEnemySpritePath(enemyName: string): string | null {
   const normalized = enemyName.toLowerCase()
 
   if (normalized.includes('leviathan') || normalized.includes('overseer')) {
-    return '/enemies/Princ.gif'
+    return 'src/assets/Princ.gif'
   }
 
   if (normalized.includes('beast') || normalized.includes('marauder')) {
-    return '/enemies/Zomb.gif'
+    return 'src/assets/Zomb.gif'
   }
 
   if (normalized.includes('drone') || normalized.includes('shade') || normalized.includes('executor')) {
-    return '/enemies/Xman.gif'
+    return 'src/assets/Xman.gif'
   }
 
-  return '/enemies/stone_axe-export.png'
+  return 'src/assets/stone_axe-export.png'
 }
 
 export default App
