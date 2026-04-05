@@ -1,12 +1,15 @@
 import type {
   ClassId,
   ClassProfile,
+  CommandResult,
   DateHistoryEntry,
   EncounterState,
   GameState,
   QuestDefinition,
   QuestObjectiveMetric,
   QuestState,
+  UpgradeDefinition,
+  UpgradeState,
 } from './types'
 
 export const REALTIME_TICK_MS = 1_000
@@ -74,6 +77,51 @@ const QUEST_DEFINITIONS: QuestDefinition[] = [
   },
 ]
 
+function generateUpgradeLevels(baseCost: number, costMultiplier: number, maxLevels: number): Array<{ level: number; cost: number; multiplier: number }> {
+  const levels = []
+  for (let i = 1; i <= maxLevels; i++) {
+    const cost = Math.floor(baseCost * Math.pow(costMultiplier, i - 1))
+    const multiplier = 1 + (i * 0.1) // Each level adds 10% multiplier
+    levels.push({ level: i, cost, multiplier })
+  }
+  return levels
+}
+
+const UPGRADE_DEFINITIONS: Record<string, UpgradeDefinition> = {
+  damage: {
+    id: 'damage',
+    name: 'Dano',
+    description: 'Aumenta o dano de ataque.',
+    baseCost: 100,
+    costMultiplier: 1.15,
+    levels: generateUpgradeLevels(100, 1.15, 20),
+  },
+  attack_speed: {
+    id: 'attack_speed',
+    name: 'Velocidade de Ataque',
+    description: 'Aumenta a velocidade de ataque.',
+    baseCost: 120,
+    costMultiplier: 1.15,
+    levels: generateUpgradeLevels(120, 1.15, 20),
+  },
+  gold_multiplier: {
+    id: 'gold_multiplier',
+    name: 'Multiplicador de Ouro',
+    description: 'Aumenta os ganhos de ouro.',
+    baseCost: 150,
+    costMultiplier: 1.2,
+    levels: generateUpgradeLevels(150, 1.2, 20),
+  },
+  xp_multiplier: {
+    id: 'xp_multiplier',
+    name: 'Multiplicador de XP',
+    description: 'Aumenta os ganhos de experiência.',
+    baseCost: 150,
+    costMultiplier: 1.2,
+    levels: generateUpgradeLevels(150, 1.2, 20),
+  },
+}
+
 interface MetricsDelta {
   kills: number
   gold: number
@@ -87,6 +135,58 @@ export interface EngineOptions {
 }
 
 const DEFAULT_PLAYER_NAME = 'Meaghan'
+
+export const AVAILABLE_COMMANDS = [
+  'help',
+  'status',
+  'class',
+  'quests',
+  'upgrade',
+  'log',
+  'history',
+  'pause',
+  'resume',
+  'export',
+  'import',
+]
+
+export const AVAILABLE_CLASSES = ['sentinel', 'arcanist', 'shade']
+
+export const AVAILABLE_UPGRADE_TYPES = [
+  'damage',
+  'attack_speed',
+  'gold_multiplier',
+  'xp_multiplier',
+]
+
+export function getContextualSuggestions(input: string): string[] {
+  const trimmed = input.trim()
+  if (!trimmed) return []
+
+  const parts = trimmed.split(/\s+/)
+  const command = parts[0].toLowerCase()
+  const hasSpace = input.endsWith(' ')
+
+  // If user typed the command with a space, show context-specific suggestions
+  if (hasSpace && parts.length === 1) {
+    if (command === 'class') {
+      return AVAILABLE_CLASSES
+    }
+    if (command === 'upgrade') {
+      return AVAILABLE_UPGRADE_TYPES
+    }
+    if (command === 'log' || command === 'history') {
+      return ['[n]'] // Parameter hint
+    }
+  }
+
+  // If user is still typing the command name
+  if (!hasSpace) {
+    return AVAILABLE_COMMANDS.filter((cmd) => cmd.startsWith(command))
+  }
+
+  return []
+}
 
 export function listClassProfiles(): ClassProfile[] {
   return Object.values(CLASS_PROFILES)
@@ -128,6 +228,12 @@ export function createInitialGameState(
     activeEncounter: null,
     paused: false,
     lastSeenAt: nowIso,
+    upgrades: {
+      damage: 0,
+      attack_speed: 0,
+      gold_multiplier: 0,
+      xp_multiplier: 0,
+    },
   }
 
   initializeQuestCycles(state, now)
@@ -226,6 +332,69 @@ export function applyOfflineProgress(
   )
 
   return { state: withResumeLog, appliedMs }
+}
+
+export function listUpgrades(): UpgradeDefinition[] {
+  return Object.values(UPGRADE_DEFINITIONS)
+}
+
+export function getUpgradeDefinition(id: string): UpgradeDefinition | null {
+  return (UPGRADE_DEFINITIONS as Record<string, UpgradeDefinition | undefined>)[id] ?? null
+}
+
+export function getUpgradeCost(upgradeId: string, currentLevel: number): number {
+  const definition = getUpgradeDefinition(upgradeId)
+  if (!definition) return 0
+  
+  const nextLevel = currentLevel + 1
+  if (nextLevel > definition.levels.length) return 0
+  
+  return definition.levels[nextLevel - 1].cost
+}
+
+export function getUpgradeMultiplier(upgradeId: string, level: number): number {
+  if (level === 0) return 1
+  
+  const definition = getUpgradeDefinition(upgradeId)
+  if (!definition || level > definition.levels.length) return 1
+  
+  return definition.levels[level - 1].multiplier
+}
+
+export function applyUpgrade(state: GameState, upgradeId: string, now: Date): CommandResult {
+  const result = { ok: false, message: '' }
+  const definition = getUpgradeDefinition(upgradeId)
+  
+  if (!definition) {
+    result.message = `Melhoria desconhecida: ${upgradeId}.`
+    return result
+  }
+  
+  const currentLevel = state.upgrades[definition.id as keyof UpgradeState]
+  const cost = getUpgradeCost(upgradeId, currentLevel)
+  
+  if (cost === 0) {
+    result.message = `A melhoria "${definition.name}" já atingiu o nível máximo.`
+    return result
+  }
+  
+  if (state.player.gold < cost) {
+    result.message = `Ouro insuficiente. Necessário: ${cost}, Disponível: ${state.player.gold}.`
+    return result
+  }
+  
+  const newState = cloneState(state)
+  newState.player.gold -= cost
+  newState.upgrades[definition.id as keyof UpgradeState] += 1
+  const newLevel = newState.upgrades[definition.id as keyof UpgradeState]
+  
+  pushActivity(newState, `Melhoria "${definition.name}" obteve nível ${newLevel}.`, now.toISOString())
+  
+  return {
+    ok: true,
+    message: `Melhoria "${definition.name}" atualizada para nível ${newLevel} (Custo: ${cost} ouro).`,
+    statePatch: newState,
+  }
 }
 
 export function advanceGameState(
@@ -344,17 +513,25 @@ function resolveCombatStep(
   }
 
   const encounter = state.activeEncounter
-  const rounds = Math.max(1, Math.floor(stepMs / Math.max(900, 2_300 - state.stats.speed * 75)))
+  const attackSpeedMultiplier = getUpgradeMultiplier('attack_speed', state.upgrades.attack_speed)
+  const damageMultiplier = getUpgradeMultiplier('damage', state.upgrades.damage)
+  
+  // Apply attack speed multiplier to reduce the cooldown between attacks
+  const baseCooldown = Math.max(900, 2_300 - state.stats.speed * 75)
+  const effectiveCooldown = baseCooldown / attackSpeedMultiplier
+  
+  const rounds = Math.max(1, Math.floor(stepMs / effectiveCooldown))
 
   for (let round = 0; round < rounds; round += 1) {
     if (!state.activeEncounter) {
       break
     }
 
-    const playerDamage = Math.max(
+    const baseDamage = Math.max(
       1,
       Math.round(state.stats.attack * 0.62 + randomInt(0, 3, rng) - encounter.defense * 0.45),
     )
+    const playerDamage = Math.max(1, Math.round(baseDamage * damageMultiplier))
     encounter.hp -= playerDamage
 
     if (encounter.hp <= 0) {
@@ -448,18 +625,27 @@ function grantRewards(
   logs: string[],
   source: string,
 ): void {
-  if (xp > 0) {
-    state.player.xp += xp
-    metrics.xp += xp
+  // Apply multipliers
+  const xpMultiplier = getUpgradeMultiplier('xp_multiplier', state.upgrades.xp_multiplier)
+  const goldMultiplier = getUpgradeMultiplier('gold_multiplier', state.upgrades.gold_multiplier)
+  
+  const finalXp = Math.round(xp * xpMultiplier)
+  const finalGold = Math.round(gold * goldMultiplier)
+
+  if (finalXp > 0) {
+    state.player.xp += finalXp
+    metrics.xp += finalXp
   }
 
-  if (gold > 0) {
-    state.player.gold += gold
-    metrics.gold += gold
+  if (finalGold > 0) {
+    state.player.gold += finalGold
+    metrics.gold += finalGold
   }
 
-  if (xp > 0 || gold > 0) {
-    logs.push(`Recompensa (${source}): +${xp} XP, +${gold} ouro.`)
+  if (finalXp > 0 || finalGold > 0) {
+    const xpStr = xpMultiplier > 1 ? `+${finalXp} XP (x${xpMultiplier.toFixed(1)})` : `+${finalXp} XP`
+    const goldStr = goldMultiplier > 1 ? `+${finalGold} ouro (x${goldMultiplier.toFixed(1)})` : `+${finalGold} ouro`
+    logs.push(`Recompensa (${source}): ${xpStr}, ${goldStr}.`)
   }
 
   processLevelUps(state, now, logs)

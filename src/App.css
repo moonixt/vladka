@@ -266,6 +266,13 @@
   color: var(--fg-primary);
 }
 
+.input-with-suggestion {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .prompt input {
   flex: 1;
   background: transparent;
@@ -274,10 +281,58 @@
   color: var(--fg-primary);
   font-family: inherit;
   font-size: 0.95rem;
+  position: relative;
+  z-index: 2;
 }
 
 .prompt input::placeholder {
   color: var(--fg-dim);
+}
+
+.inline-suggestion {
+  position: absolute;
+  left: 0;
+  color: var(--fg-dim);
+  font-family: inherit;
+  font-size: 0.95rem;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.6;
+}
+
+.suggestion-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(15, 15, 15, 0.95);
+  border: 1px solid var(--border-soft);
+  border-top: none;
+  border-radius: 0 0 2px 2px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 10;
+  margin-top: -1px;
+}
+
+.suggestion-option {
+  padding: 0.4rem 0.6rem;
+  color: var(--fg-soft);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 100ms ease;
+}
+
+.suggestion-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.suggestion-option.selected {
+  background: rgba(255, 200, 100, 0.15);
+  color: #ffc864;
+  font-weight: 500;
 }
 
 @media (max-width: 840px) {

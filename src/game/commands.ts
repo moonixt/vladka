@@ -1,6 +1,10 @@
 import {
+  applyUpgrade,
   getClassProfile,
+  getUpgradeCost,
+  getUpgradeMultiplier,
   listClassProfiles,
+  listUpgrades,
   setPlayerClass,
 } from './engine'
 import { buildExportFileName, serializeSaveFile } from './save'
@@ -28,7 +32,7 @@ export function executeCommand(
         ok: true,
         message: [
           'Comandos disponíveis:',
-          'help, status, class <nome>, quests, log [n], history [n], pause, resume, export, import',
+          'help, status, class <nome>, quests, upgrades, upgrade <tipo>, log [n], history [n], pause, resume, export, import',
         ].join('\n'),
       }
 
@@ -46,6 +50,15 @@ export function executeCommand(
         ok: true,
         message: formatQuests(state),
       }
+
+    case 'upgrades':
+      return {
+        ok: true,
+        message: formatUpgrades(state),
+      }
+
+    case 'upgrade':
+      return handleUpgradeCommand(state, args, now)
 
     case 'log':
       return {
@@ -231,6 +244,52 @@ function formatDateHistory(state: GameState, rawLimit: string | undefined): stri
       return `${stamp} [${entry.kind}] ${entry.label}`
     })
     .join('\n')
+}
+
+function formatUpgrades(state: GameState): string {
+  const upgrades = listUpgrades()
+  const lines: string[] = [
+    'Sistema de Melhorias:',
+    `Ouro disponível: ${state.player.gold}\n`,
+  ]
+
+  for (const upgrade of upgrades) {
+    const currentLevel = state.upgrades[upgrade.id as keyof typeof state.upgrades]
+    const cost = currentLevel === 20 ? '-' : String(getUpgradeCost(upgrade.id, currentLevel))
+    const multiplier = getUpgradeMultiplier(upgrade.id, currentLevel)
+    
+    const levelStr = currentLevel === 20 ? 'MAX' : `${currentLevel}/20`
+    const multiplierStr = multiplier > 1 ? ` (x${multiplier.toFixed(1)})` : ''
+    const costStr = cost === '-' ? ' [MÁXIMO]' : ` | Próximo: ${cost} ouro`
+    
+    lines.push(`${upgrade.name}: Nível ${levelStr}${multiplierStr}${costStr}`)
+    lines.push(`  ${upgrade.description}`)
+  }
+
+  lines.push('')
+  lines.push('Use "upgrade <tipo>" para comprar. Exemplos:')
+  lines.push('  upgrade damage')
+  lines.push('  upgrade attack_speed')
+  lines.push('  upgrade gold_multiplier')
+  lines.push('  upgrade xp_multiplier')
+
+  return lines.join('\n')
+}
+
+function handleUpgradeCommand(
+  state: GameState,
+  args: string[],
+  now: Date,
+): CommandResult {
+  if (!args[0]) {
+    return {
+      ok: false,
+      message: 'Use "upgrades" para ver as melhorias disponíveis. Use "upgrade <tipo>" para comprar.',
+    }
+  }
+
+  const upgradeId = args[0].toLowerCase()
+  return applyUpgrade(state, upgradeId, now)
 }
 
 function parseLimit(raw: string | undefined, fallback: number): number {
