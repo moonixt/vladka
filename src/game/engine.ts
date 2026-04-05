@@ -479,7 +479,11 @@ function resolveCombatStep(
       1,
       Math.round(state.stats.attack * 0.62 + randomInt(0, 3, rng) - encounter.defense * 0.45),
     )
-    const playerDamage = Math.max(1, Math.round(baseDamage * damageMultiplier))
+    
+    // Critical hit system: 5% chance to deal 1.75x damage
+    const isCrit = rng() < 0.05
+    const critMultiplier = isCrit ? 1.75 : 1
+    const playerDamage = Math.max(1, Math.round(baseDamage * damageMultiplier * critMultiplier))
     encounter.hp -= playerDamage
 
     if (encounter.hp <= 0) {
@@ -499,8 +503,9 @@ function resolveCombatStep(
     }
 
     if (round === 0 && rng() < 0.35) {
+      const critText = isCrit ? ' [CRÍTICO!]' : ''
       logs.push(
-        `${encounter.name}: -${playerDamage} HP no alvo, você recebeu ${enemyDamage} de dano.`,
+        `${encounter.name}: -${playerDamage} HP no alvo${critText}, você recebeu ${enemyDamage} de dano.`,
       )
     }
   }
