@@ -136,58 +136,6 @@ export interface EngineOptions {
 
 const DEFAULT_PLAYER_NAME = 'Meaghan'
 
-export const AVAILABLE_COMMANDS = [
-  'help',
-  'status',
-  'class',
-  'quests',
-  'upgrade',
-  'log',
-  'history',
-  'pause',
-  'resume',
-  'export',
-  'import',
-]
-
-export const AVAILABLE_CLASSES = ['sentinel', 'arcanist', 'shade']
-
-export const AVAILABLE_UPGRADE_TYPES = [
-  'damage',
-  'attack_speed',
-  'gold_multiplier',
-  'xp_multiplier',
-]
-
-export function getContextualSuggestions(input: string): string[] {
-  const trimmed = input.trim()
-  if (!trimmed) return []
-
-  const parts = trimmed.split(/\s+/)
-  const command = parts[0].toLowerCase()
-  const hasSpace = input.endsWith(' ')
-
-  // If user typed the command with a space, show context-specific suggestions
-  if (hasSpace && parts.length === 1) {
-    if (command === 'class') {
-      return AVAILABLE_CLASSES
-    }
-    if (command === 'upgrade') {
-      return AVAILABLE_UPGRADE_TYPES
-    }
-    if (command === 'log' || command === 'history') {
-      return ['[n]'] // Parameter hint
-    }
-  }
-
-  // If user is still typing the command name
-  if (!hasSpace) {
-    return AVAILABLE_COMMANDS.filter((cmd) => cmd.startsWith(command))
-  }
-
-  return []
-}
-
 export function listClassProfiles(): ClassProfile[] {
   return Object.values(CLASS_PROFILES)
 }

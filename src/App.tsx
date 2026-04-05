@@ -9,7 +9,6 @@ import {
 import './App.css'
 import {
   REALTIME_TICK_MS,
-  getContextualSuggestions,
   advanceGameState,
   applyOfflineProgress,
   createInitialGameState,
@@ -67,8 +66,6 @@ function App() {
   const [terminalLines, setTerminalLines] = useState<string[]>(boot.lines)
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState<number>(-1)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(0)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const outputRef = useRef<HTMLDivElement>(null)
@@ -137,8 +134,6 @@ function App() {
     // Add to command history
     setCommandHistory((prev) => [submitted, ...prev.slice(0, 49)])
     setHistoryIndex(-1)
-    setSuggestions([])
-    setSelectedSuggestionIndex(0)
 
     const result = executeCommand(submitted, gameState, new Date())
     if (result.statePatch) {
@@ -157,78 +152,18 @@ function App() {
     setCommandInput('')
   }
 
-  function handleCommandInputChange(value: string) {
-    setCommandInput(value)
-    setHistoryIndex(-1)
-    
-    const newSuggestions = getContextualSuggestions(value)
-    setSuggestions(newSuggestions)
-    setSelectedSuggestionIndex(0)
-  }
 
-  function applySuggestion(suggestion: string) {
-    const input = commandInput.trim()
-    
-    // Don't apply parameter hints like [n]
-    if (suggestion === '[n]') {
-      return
-    }
-    
-    const hasSpace = commandInput.endsWith(' ')
-    
-    if (hasSpace) {
-      // User typed command with space, append the suggestion
-      setCommandInput(`${input} ${suggestion}`)
-    } else {
-      // User is still typing the command, replace it
-      const firstWord = input.split(/\s+/)[0]
-      const restOfInput = input.slice(firstWord.length).trimStart()
-      const newInput = restOfInput ? `${suggestion} ${restOfInput}` : suggestion
-      setCommandInput(newInput)
-    }
-    
-    setSuggestions([])
-    setSelectedSuggestionIndex(0)
-  }
 
   function handleCommandKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    // Handle Escape to close suggestions
-    if (event.key === 'Escape' && suggestions.length > 0) {
-      event.preventDefault()
-      setSuggestions([])
-      setSelectedSuggestionIndex(0)
-      return
-    }
-
-    // Handle Enter for accepting suggestions
-    if (event.key === 'Enter' && suggestions.length > 0) {
-      event.preventDefault()
-      applySuggestion(suggestions[selectedSuggestionIndex])
-      return
-    }
-
-    // Handle left/right arrows to navigate suggestions (only if suggestions exist)
-    if (event.key === 'ArrowLeft' && suggestions.length > 0) {
-      event.preventDefault()
-      const newIndex = selectedSuggestionIndex === 0 ? suggestions.length - 1 : selectedSuggestionIndex - 1
-      setSelectedSuggestionIndex(newIndex)
-      return
-    } else if (event.key === 'ArrowRight' && suggestions.length > 0) {
-      event.preventDefault()
-      const newIndex = (selectedSuggestionIndex + 1) % suggestions.length
-      setSelectedSuggestionIndex(newIndex)
-      return
-    }
-
-    // Handle up/down arrows for history navigation (only if no suggestions)
-    if (event.key === 'ArrowUp' && suggestions.length === 0) {
+    // Handle up/down arrows for history navigation
+    if (event.key === 'ArrowUp') {
       event.preventDefault()
       const newIndex = historyIndex + 1
       if (newIndex < commandHistory.length) {
         setHistoryIndex(newIndex)
         setCommandInput(commandHistory[newIndex])
       }
-    } else if (event.key === 'ArrowDown' && suggestions.length === 0) {
+    } else if (event.key === 'ArrowDown') {
       event.preventDefault()
       if (historyIndex > 0) {
         const newIndex = historyIndex - 1
@@ -397,37 +332,15 @@ function App() {
 
         <form className="prompt" onSubmit={handleCommandSubmit}>
           <span className="prompt-symbol">$</span>
-          <div className="input-with-suggestion">
-            <input
-              autoFocus
-              value={commandInput}
-              onChange={(event) => handleCommandInputChange(event.target.value)}
-              onKeyDown={handleCommandKeyDown}
-              placeholder="Digite um comando..."
-              spellCheck={false}
-            />
-            {suggestions.length > 0 && !suggestions[selectedSuggestionIndex].startsWith('[') && (
-              <span className="inline-suggestion">
-                {suggestions[selectedSuggestionIndex]}
-              </span>
-            )}
-            {suggestions.length > 0 && (
-              <div className="suggestion-dropdown">
-                {suggestions.map((suggestion, index) => (
-                  !suggestion.startsWith('[') && (
-                    <div
-                      key={suggestion}
-                      className={`suggestion-option ${index === selectedSuggestionIndex ? 'selected' : ''}`}
-                      onClick={() => applySuggestion(suggestion)}
-                      onMouseEnter={() => setSelectedSuggestionIndex(index)}
-                    >
-                      {suggestion}
-                    </div>
-                  )
-                ))}
-              </div>
-            )}
-          </div>
+          <input
+            autoFocus
+            value={commandInput}
+            onChange={(event) => setCommandInput(event.target.value)}
+            onKeyDown={handleCommandKeyDown}
+            placeholder="Digite um comando..."
+            spellCheck={false}
+            className="command-input"
+          />
         </form>
         <input
           ref={fileInputRef}
