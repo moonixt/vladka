@@ -67,7 +67,7 @@ function App() {
     const resumed = applyOfflineProgress(cached, now)
     const state = registerSession(resumed.state, now, 'Sessão reaberta pelo operador.')
     const offlineMinutes = Math.floor(resumed.appliedMs / 60_000)
-// caguei
+
     return {
       state,
       entries: asTextEntries([
@@ -80,6 +80,9 @@ function App() {
 
   const [gameState, setGameState] = useState<GameState>(boot.state)
   const [commandInput, setCommandInput] = useState('')
+  const [terminalLines, setTerminalLines] = useState<string[]>(boot.lines)
+  const [commandHistory, setCommandHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState<number>(-1)
   const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>(boot.entries)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -124,7 +127,7 @@ function App() {
 
   const recentActivity = gameState.recentActivity.slice(0, 7)
   const commandHint =
-    'help | status | class <sentinel|arcanist|shade> | quests | log | history | inventory | pause | resume | export | import'
+    'help | status | class <sentinel|arcanist|shade> | quests | log | history | pause | resume | inventory |  export | import | upgrades | upgrade'
 
   const levelTierClass = getLevelTierClass(gameState.player.level)
   const enemyHpPercent = gameState.activeEncounter
@@ -147,6 +150,10 @@ function App() {
 
     appendTerminal(`> ${submitted}`)
 
+    // Add to command history
+    setCommandHistory((prev) => [submitted, ...prev.slice(0, 49)])
+    setHistoryIndex(-1)
+
     const result = executeCommand(submitted, gameState, new Date())
     if (result.statePatch) {
       setGameState(result.statePatch)
@@ -166,6 +173,30 @@ function App() {
 
     appendTerminal(result.message)
     setCommandInput('')
+  }
+
+
+
+  function handleCommandKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    // Handle up/down arrows for history navigation
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      const newIndex = historyIndex + 1
+      if (newIndex < commandHistory.length) {
+        setHistoryIndex(newIndex)
+        setCommandInput(commandHistory[newIndex])
+      }
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1
+        setHistoryIndex(newIndex)
+        setCommandInput(commandHistory[newIndex])
+      } else if (historyIndex === 0) {
+        setHistoryIndex(-1)
+        setCommandInput('')
+      }
+    }
   }
 
   function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
@@ -380,8 +411,10 @@ function App() {
             autoFocus
             value={commandInput}
             onChange={(event) => setCommandInput(event.target.value)}
+            onKeyDown={handleCommandKeyDown}
             placeholder="Digite um comando..."
             spellCheck={false}
+            className="command-input"
           />
         </form>
         <input
@@ -465,6 +498,10 @@ function getEnemySpritePath(enemyName: string): string | null {
 
   if (normalized.includes('drone') || normalized.includes('shade') || normalized.includes('executor')) {
     return 'src/assets/Xman.gif'
+  }
+
+  if (normalized.includes('slime')) {
+    return 'src/assets/slime.gif'
   }
 
   return 'src/assets/stone_axe-export.png'

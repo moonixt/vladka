@@ -342,7 +342,7 @@
   color: var(--fg-primary);
 }
 
-.prompt input {
+.command-input {
   flex: 1;
   background: transparent;
   border: none;
@@ -352,7 +352,7 @@
   font-size: 0.95rem;
 }
 
-.prompt input::placeholder {
+.command-input::placeholder {
   color: var(--fg-dim);
 }
 

@@ -84,6 +84,30 @@ export interface ActivityEntry {
   at: string
 }
 
+export type UpgradeType = 'damage' | 'attack_speed' | 'gold_multiplier' | 'xp_multiplier'
+
+export interface UpgradeLevel {
+  level: number
+  cost: number
+  multiplier: number
+}
+
+export interface UpgradeDefinition {
+  id: UpgradeType
+  name: string
+  description: string
+  baseCost: number
+  costMultiplier: number
+  levels: UpgradeLevel[]
+}
+
+export interface UpgradeState {
+  damage: number
+  attack_speed: number
+  gold_multiplier: number
+  xp_multiplier: number
+}
+
 export interface GameState {
   player: PlayerState
   stats: CombatStats
@@ -99,6 +123,7 @@ export interface GameState {
   paused: boolean
   lastSeenAt: string
   version: 1
+  upgrades: UpgradeState
 }
 
 export interface SaveFileV1 {
@@ -116,6 +141,7 @@ export interface SaveFileV1 {
   recentActivity: ActivityEntry[]
   activeEncounter: EncounterState | null
   paused: boolean
+  upgrades: UpgradeState
 }
 
 export interface CommandSideEffectExport {

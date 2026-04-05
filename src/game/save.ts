@@ -26,6 +26,7 @@ export function toSaveFileV1(state: GameState): SaveFileV1 {
     recentActivity: state.recentActivity,
     activeEncounter: state.activeEncounter,
     paused: state.paused,
+    upgrades: state.upgrades,
   }
 }
 
@@ -33,6 +34,12 @@ export function fromSaveFileV1(save: SaveFileV1): GameState {
   return {
     ...save,
     version: 1,
+    upgrades: save.upgrades ?? {
+      damage: 0,
+      attack_speed: 0,
+      gold_multiplier: 0,
+      xp_multiplier: 0,
+    },
   }
 }
 
