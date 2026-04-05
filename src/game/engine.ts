@@ -430,10 +430,9 @@ function resolveExplorationStep(
     state.inventory[item] = (state.inventory[item] ?? 0) + 1
 
     const foundGold = randomInt(4, 10, rng)
-    state.player.gold += foundGold
-    metrics.gold += foundGold
+    grantRewards(state, 0, foundGold, now, metrics, logs, 'suprimento de ouro')
 
-    logs.push(`Suprimento encontrado: ${item} (+1) e ${foundGold} ouro.`)
+    logs.push(`Suprimento encontrado: ${item} (+1).`)
     return
   }
 
