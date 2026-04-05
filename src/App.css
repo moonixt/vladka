@@ -37,6 +37,40 @@
   color: var(--fg-soft);
 }
 
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.ost-toggle {
+  border: 1px dotted var(--border-soft);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fg-primary);
+  font-family: inherit;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  padding: 0.22rem 0.45rem;
+  cursor: pointer;
+}
+
+.ost-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ost-nav {
+  width: 28px;
+  padding: 0.18rem 0;
+}
+
+.ost-track-name {
+  min-width: 92px;
+  text-align: center;
+  color: var(--fg-primary);
+  font-size: 0.75rem;
+}
+
 .board-grid {
   margin-top: 0.75rem;
   display: grid;
@@ -199,6 +233,41 @@
 
 .line-col {
   color: var(--fg-primary);
+}
+
+.activity-damage {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+
+.activity-hp {
+  color: #76e1ff;
+  font-weight: 600;
+}
+
+.activity-drop {
+  color: #9be870;
+  font-weight: 600;
+}
+
+.activity-artifact {
+  color: #f6d36f;
+  font-weight: 700;
+}
+
+.activity-boss {
+  color: #ff5f5f;
+  font-weight: 700;
+}
+
+.activity-xp {
+  color: #8fc2ff;
+  font-weight: 600;
+}
+
+.activity-gold {
+  color: #ffd86b;
+  font-weight: 600;
 }
 
 .memory-box {

@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type FormEvent,
   type MutableRefObject,
+  type ReactNode,
 } from 'react'
 import './App.css'
 import {
@@ -26,6 +27,12 @@ import {
   persistSessionCache,
 } from './game/save'
 import type { GameState, InventorySlot } from './game/types'
+import ostTrackBuw from './sound/ost/Buw.wav'
+import ostTrackHihi from './sound/ost/hihi.wav'
+import ostTrackHisto from './sound/ost/histo histo.wav'
+import ostTrackHistory from './sound/ost/history.wav'
+import ostTrackZuzu from './sound/ost/zuzu.wav'
+import goldDropSfx from './sound/effects/gold-drop-1s.mp3'
 
 interface BootResult {
   state: GameState
@@ -46,6 +53,14 @@ type TerminalInventoryEntry = {
 
 type TerminalEntry = TerminalTextEntry | TerminalInventoryEntry
 type InventoryViewFilter = 'all' | InventorySlot['category']
+
+const OST_TRACKS = [
+  { name: 'Buw', src: ostTrackBuw },
+  { name: 'Hihi', src: ostTrackHihi },
+  { name: 'Histo Histo', src: ostTrackHisto },
+  { name: 'History', src: ostTrackHistory },
+  { name: 'Zuzu', src: ostTrackZuzu },
+]
 
 function App() {
   const boot = useMemo<BootResult>(() => {
@@ -80,7 +95,6 @@ function App() {
 
   const [gameState, setGameState] = useState<GameState>(boot.state)
   const [commandInput, setCommandInput] = useState('')
-  const [terminalLines, setTerminalLines] = useState<string[]>(boot.lines)
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState<number>(-1)
   const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>(boot.entries)
@@ -88,6 +102,13 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const outputRef = useRef<HTMLDivElement>(null)
   const terminalIdRef = useRef(boot.entries.length + 1)
+  const ostAudioRef = useRef<HTMLAudioElement | null>(null)
+  const goldDropAudioRef = useRef<HTMLAudioElement | null>(null)
+  const seenActivityIdsRef = useRef<Set<string>>(
+    new Set(boot.state.recentActivity.map((entry) => entry.id)),
+  )
+  const [isOstPlaying, setIsOstPlaying] = useState(false)
+  const [ostTrackIndex, setOstTrackIndex] = useState(0)
 
   useEffect(() => {
     const loop = window.setInterval(() => {
@@ -115,6 +136,80 @@ function App() {
     }
   }, [])
 
+  const appendTerminal = useCallback((message: string): void => {
+    setTerminalEntries((prev) => {
+      const lines = message.split('\n')
+      const next = [
+        ...prev,
+        ...lines.map((line) => ({
+          id: nextTerminalId(terminalIdRef),
+          type: 'text' as const,
+          text: line,
+        })),
+      ]
+      return next.slice(-240)
+    })
+  }, [])
+
+  useEffect(() => {
+    const track = OST_TRACKS[ostTrackIndex]
+    const audio = new Audio(track.src)
+    audio.loop = true
+    audio.volume = 0.42
+    ostAudioRef.current = audio
+
+    if (isOstPlaying) {
+      void audio.play().catch(() => {
+        setIsOstPlaying(false)
+        appendTerminal('[OST] Falha ao trocar faixa automaticamente.')
+      })
+    }
+
+    return () => {
+      audio.pause()
+      ostAudioRef.current = null
+    }
+  }, [appendTerminal, isOstPlaying, ostTrackIndex])
+
+  useEffect(() => {
+    const audio = new Audio(goldDropSfx)
+    audio.volume = 0.72
+    goldDropAudioRef.current = audio
+
+    return () => {
+      audio.pause()
+      goldDropAudioRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    let shouldPlay = false
+
+    for (const entry of gameState.recentActivity) {
+      if (seenActivityIdsRef.current.has(entry.id)) {
+        continue
+      }
+
+      seenActivityIdsRef.current.add(entry.id)
+      if (isPositiveGoldDropMessage(entry.message)) {
+        shouldPlay = true
+      }
+    }
+
+    if (!shouldPlay) {
+      return
+    }
+
+    const baseAudio = goldDropAudioRef.current
+    if (!baseAudio) {
+      return
+    }
+
+    const oneShot = baseAudio.cloneNode(true) as HTMLAudioElement
+    oneShot.volume = baseAudio.volume
+    void oneShot.play().catch(() => {})
+  }, [gameState.recentActivity])
+
   useEffect(() => {
     if (!outputRef.current) {
       return
@@ -139,6 +234,42 @@ function App() {
   const enemySpritePath = gameState.activeEncounter
     ? getEnemySpritePath(gameState.activeEncounter.name)
     : null
+
+  async function toggleOst(): Promise<void> {
+    const audio = ostAudioRef.current
+    if (!audio) {
+      return
+    }
+
+    if (isOstPlaying) {
+      audio.pause()
+      setIsOstPlaying(false)
+      appendTerminal('[OST] Pausada.')
+      return
+    }
+
+    try {
+      await audio.play()
+      setIsOstPlaying(true)
+      appendTerminal(`[OST] Tocando: ${OST_TRACKS[ostTrackIndex].name}.`)
+    } catch {
+      setIsOstPlaying(false)
+      appendTerminal('[OST] Não foi possível iniciar. Interaja com a janela e tente novamente.')
+    }
+  }
+
+  function changeOstTrack(direction: 'prev' | 'next'): void {
+    setOstTrackIndex((current) => {
+      const delta = direction === 'next' ? 1 : -1
+      const next = (current + delta + OST_TRACKS.length) % OST_TRACKS.length
+      return next
+    })
+    const targetName =
+      direction === 'next'
+        ? OST_TRACKS[(ostTrackIndex + 1) % OST_TRACKS.length].name
+        : OST_TRACKS[(ostTrackIndex - 1 + OST_TRACKS.length) % OST_TRACKS.length].name
+    appendTerminal(`[OST] Faixa selecionada: ${targetName}.`)
+  }
 
   function handleCommandSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -238,21 +369,6 @@ function App() {
     reader.readAsText(file)
   }
 
-  const appendTerminal = useCallback((message: string): void => {
-    setTerminalEntries((prev) => {
-      const lines = message.split('\n')
-      const next = [
-        ...prev,
-        ...lines.map((line) => ({
-          id: nextTerminalId(terminalIdRef),
-          type: 'text' as const,
-          text: line,
-        })),
-      ]
-      return next.slice(-240)
-    })
-  }, [])
-
   const appendInventoryGrid = useCallback((slots: InventorySlot[]): void => {
     setTerminalEntries((prev) => {
       const next = [
@@ -288,7 +404,19 @@ function App() {
     <main className="shell">
       <header className="title-bar">
         <span>terminal-idle-rpg v1.0</span>
-        <span>{new Date().toLocaleString()}</span>
+        <div className="title-actions">
+          <button type="button" className="ost-toggle ost-nav" onClick={() => void changeOstTrack('prev')}>
+            {'<'}
+          </button>
+          <span className="ost-track-name">{OST_TRACKS[ostTrackIndex].name}</span>
+          <button type="button" className="ost-toggle ost-nav" onClick={() => void changeOstTrack('next')}>
+            {'>'}
+          </button>
+          <button type="button" className="ost-toggle" onClick={() => void toggleOst()}>
+            OST: {isOstPlaying ? 'Pause' : 'Play'}
+          </button>
+          <span>{new Date().toLocaleString()}</span>
+        </div>
       </header>
 
       <section className="board-grid">
@@ -355,7 +483,7 @@ function App() {
             {recentActivity.map((entry) => (
               <li key={entry.id}>
                 <span className="time-col">{formatAgo(entry.at)}</span>
-                <span className="line-col">{entry.message}</span>
+                <span className="line-col">{renderActivityMessage(entry.message)}</span>
               </li>
             ))}
           </ul>
@@ -463,6 +591,51 @@ function formatAgo(isoDate: string): string {
 
   const days = Math.floor(hours / 24)
   return `${days}d atrás`
+}
+
+function renderActivityMessage(message: string): ReactNode {
+  const tokenPattern =
+    /(\+\d+\sXP|\+\d+\souro|-\d+\sHP|\bHP\b|\bDrop\b|\bArtefato\b|\bBOSS\b|\bChefe\b|\bdano\b)/gi
+  const tokens = message.split(tokenPattern)
+
+  return tokens.map((token, index) => {
+    if (token.length === 0) {
+      return null
+    }
+
+    const normalized = token.toLowerCase()
+    let className: string | undefined
+
+    if (/^\+\d+\sxp$/i.test(token)) {
+      className = 'activity-xp'
+    } else if (/^\+\d+\souro$/i.test(token)) {
+      className = 'activity-gold'
+    } else if (/^-\d+\shp$/i.test(token) || normalized === 'dano') {
+      className = 'activity-damage'
+    } else if (normalized === 'hp') {
+      className = 'activity-hp'
+    } else if (normalized === 'drop') {
+      className = 'activity-drop'
+    } else if (normalized === 'artefato') {
+      className = 'activity-artifact'
+    } else if (normalized === 'boss' || normalized === 'chefe') {
+      className = 'activity-boss'
+    }
+
+    return (
+      <span key={`${token}-${index}`} className={className}>
+        {token}
+      </span>
+    )
+  })
+}
+
+function isPositiveGoldDropMessage(message: string): boolean {
+  if (/perdeu\s+\d+\souro/i.test(message)) {
+    return false
+  }
+
+  return /\+\d+\souro\b/i.test(message) || /\be\s+\d+\souro\b/i.test(message)
 }
 
 function getLevelTierClass(level: number): string {
