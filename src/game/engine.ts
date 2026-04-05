@@ -767,7 +767,7 @@ function generateEncounter(
   const levelScale = state.player.level + state.player.zone * 1.4
   const isBoss = forceBoss || rng() > 0.87
 
-  const regularNames = ['Drone Raider', 'Scrap Marauder', 'Null Beast', 'Iron Shade']
+  const regularNames = ['Drone Raider', 'Scrap Marauder', 'Null Beast', 'Iron Shade', 'Slime']
   const bossNames = ['Executor Vanta', 'Prime Leviathan', 'Overseer Kharon']
 
   const namePool = isBoss ? bossNames : regularNames
