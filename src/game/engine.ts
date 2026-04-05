@@ -8,6 +8,7 @@ import type {
   QuestObjectiveMetric,
   QuestState,
 } from './types'
+import { getItemDisplayName, pickRandomArtifactId } from './artifacts'
 
 export const REALTIME_TICK_MS = 1_000
 export const SIMULATION_STEP_MS = 10_000
@@ -417,6 +418,19 @@ function finishEncounterWin(
     const drop = drops[randomInt(0, drops.length - 1, rng)]
     state.inventory[drop] = (state.inventory[drop] ?? 0) + 1
     logs.push(`Drop coletado: ${drop}.`)
+  }
+
+  const artifactDropChance = encounter.isBoss ? 0.2 : 0.06
+  if (rng() < artifactDropChance) {
+    const artifactId = pickRandomArtifactId(rng)
+    state.inventory[artifactId] = (state.inventory[artifactId] ?? 0) + 1
+    logs.push(`Artefato encontrado: ${getItemDisplayName(artifactId)}.`)
+    pushDateHistory(
+      state,
+      'milestone',
+      `Artefato obtido: ${getItemDisplayName(artifactId)}`,
+      now.toISOString(),
+    )
   }
 
   logs.push(

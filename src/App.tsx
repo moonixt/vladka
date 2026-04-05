@@ -1,10 +1,12 @@
 import {
   useEffect,
   useMemo,
+  useCallback,
   useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
+  type MutableRefObject,
 } from 'react'
 import './App.css'
 import {
@@ -23,12 +25,27 @@ import {
   persistLastSeenAt,
   persistSessionCache,
 } from './game/save'
-import type { GameState } from './game/types'
+import type { GameState, InventorySlot } from './game/types'
 
 interface BootResult {
   state: GameState
-  lines: string[]
+  entries: TerminalEntry[]
 }
+
+type TerminalTextEntry = {
+  id: string
+  type: 'text'
+  text: string
+}
+
+type TerminalInventoryEntry = {
+  id: string
+  type: 'inventory'
+  slots: InventorySlot[]
+}
+
+type TerminalEntry = TerminalTextEntry | TerminalInventoryEntry
+type InventoryViewFilter = 'all' | InventorySlot['category']
 
 function App() {
   const boot = useMemo<BootResult>(() => {
@@ -39,11 +56,11 @@ function App() {
       const state = createInitialGameState(now)
       return {
         state,
-        lines: [
+        entries: asTextEntries([
           'terminal-idle-rpg v1.0',
           'Sessão nova criada.',
           'Digite `help` para ver comandos.',
-        ],
+        ]),
       }
     }
 
@@ -53,20 +70,21 @@ function App() {
 // caguei
     return {
       state,
-      lines: [
+      entries: asTextEntries([
         'terminal-idle-rpg v1.0',
         `Save local restaurado. Offline processado: ${offlineMinutes} min.`,
         'Digite `status` para conferir a evolução.',
-      ],
+      ]),
     }
   }, [])
 
   const [gameState, setGameState] = useState<GameState>(boot.state)
   const [commandInput, setCommandInput] = useState('')
-  const [terminalLines, setTerminalLines] = useState<string[]>(boot.lines)
+  const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>(boot.entries)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const outputRef = useRef<HTMLDivElement>(null)
+  const terminalIdRef = useRef(boot.entries.length + 1)
 
   useEffect(() => {
     const loop = window.setInterval(() => {
@@ -100,13 +118,13 @@ function App() {
     }
 
     outputRef.current.scrollTop = outputRef.current.scrollHeight
-  }, [terminalLines])
+  }, [terminalEntries])
 
   const activeClass = getClassProfile(gameState.class.id)
 
   const recentActivity = gameState.recentActivity.slice(0, 7)
   const commandHint =
-    'help | status | class <sentinel|arcanist|shade> | quests | log | history | pause | resume | export | import'
+    'help | status | class <sentinel|arcanist|shade> | quests | log | history | inventory | pause | resume | export | import'
 
   const levelTierClass = getLevelTierClass(gameState.player.level)
   const enemyHpPercent = gameState.activeEncounter
@@ -140,6 +158,10 @@ function App() {
 
     if (result.sideEffect?.type === 'import_prompt') {
       fileInputRef.current?.click()
+    }
+
+    if (result.sideEffect?.type === 'inventory_view') {
+      appendInventoryGrid(result.sideEffect.slots)
     }
 
     appendTerminal(result.message)
@@ -185,13 +207,51 @@ function App() {
     reader.readAsText(file)
   }
 
-  function appendTerminal(message: string): void {
-    setTerminalLines((prev) => {
+  const appendTerminal = useCallback((message: string): void => {
+    setTerminalEntries((prev) => {
       const lines = message.split('\n')
-      const next = [...prev, ...lines]
+      const next = [
+        ...prev,
+        ...lines.map((line) => ({
+          id: nextTerminalId(terminalIdRef),
+          type: 'text' as const,
+          text: line,
+        })),
+      ]
       return next.slice(-240)
     })
-  }
+  }, [])
+
+  const appendInventoryGrid = useCallback((slots: InventorySlot[]): void => {
+    setTerminalEntries((prev) => {
+      const next = [
+        ...prev,
+        {
+          id: nextTerminalId(terminalIdRef),
+          type: 'inventory' as const,
+          slots,
+        },
+      ]
+      return next.slice(-240)
+    })
+  }, [])
+
+  const handleInventorySlotClick = useCallback(
+    (slot: InventorySlot): void => {
+      if (!slot.isArtifact || !slot.lore) {
+        appendTerminal(`[ITEM] ${slot.label} x${slot.quantity}`)
+        return
+      }
+
+      appendTerminal(`[ARTEFATO] ${slot.label}`)
+      appendTerminal(`[LORE] ${slot.lore}`)
+      if (slot.curiosityUrl) {
+        appendTerminal(`[CURIOSIDADE] ${slot.curiosityUrl}`)
+        window.open(slot.curiosityUrl, '_blank', 'noopener,noreferrer')
+      }
+    },
+    [appendTerminal],
+  )
 
   return (
     <main className="shell">
@@ -293,11 +353,25 @@ function App() {
 
       <section className="panel terminal-panel">
         <div className="output" ref={outputRef}>
-          {terminalLines.map((line, index) => (
-            <p key={`${line}-${index}`} className="terminal-line">
-              {line}
-            </p>
-          ))}
+          {terminalEntries.map((entry) => {
+            if (entry.type === 'text') {
+              return (
+                <p key={entry.id} className="terminal-line">
+                  {entry.text}
+                </p>
+              )
+            }
+
+            return (
+              <div key={entry.id} className="terminal-inventory">
+                <p className="terminal-line terminal-inventory-title">Inventário (bolsa)</p>
+                <InventoryTerminalBlock
+                  slots={entry.slots}
+                  onSlotClick={handleInventorySlotClick}
+                />
+              </div>
+            )
+          })}
         </div>
 
         <form className="prompt" onSubmit={handleCommandSubmit}>
@@ -394,6 +468,83 @@ function getEnemySpritePath(enemyName: string): string | null {
   }
 
   return 'src/assets/stone_axe-export.png'
+}
+
+function asTextEntries(lines: string[]): TerminalEntry[] {
+  return lines.map((line, index) => ({
+    id: `boot-${index}`,
+    type: 'text',
+    text: line,
+  }))
+}
+
+function InventoryTerminalBlock({
+  slots,
+  onSlotClick,
+}: {
+  slots: InventorySlot[]
+  onSlotClick: (slot: InventorySlot) => void
+}) {
+  const [filter, setFilter] = useState<InventoryViewFilter>('all')
+
+  const filteredSlots = slots.filter((slot) => {
+    if (filter === 'all') {
+      return true
+    }
+
+    return slot.category === filter
+  })
+
+  return (
+    <>
+      <div className="inventory-header-tabs">
+        <button
+          type="button"
+          className={`inventory-tab ${filter === 'all' ? 'inventory-tab-active' : ''}`}
+          onClick={() => setFilter('all')}
+        >
+          ALL
+        </button>
+        <button
+          type="button"
+          className={`inventory-tab ${filter === 'reliquias' ? 'inventory-tab-active' : ''}`}
+          onClick={() => setFilter('reliquias')}
+        >
+          RELÍQUIAS
+        </button>
+        <button
+          type="button"
+          className={`inventory-tab ${filter === 'itens_venda' ? 'inventory-tab-active' : ''}`}
+          onClick={() => setFilter('itens_venda')}
+        >
+          VENDA
+        </button>
+      </div>
+      {filteredSlots.length > 0 ? (
+        <div className="inventory-grid">
+          {filteredSlots.map((slot) => (
+            <button
+              type="button"
+              key={slot.itemId}
+              className={`inventory-slot ${slot.isArtifact ? 'inventory-slot-artifact' : ''}`}
+              onClick={() => onSlotClick(slot)}
+            >
+              <span className="inventory-slot-name">{slot.label}</span>
+              <span className="inventory-slot-count">x{slot.quantity}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="terminal-line">Nada nesta categoria.</p>
+      )}
+    </>
+  )
+}
+
+function nextTerminalId(counterRef: MutableRefObject<number>): string {
+  const id = `term-${counterRef.current}`
+  counterRef.current += 1
+  return id
 }
 
 export default App
