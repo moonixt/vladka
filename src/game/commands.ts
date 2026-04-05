@@ -8,7 +8,12 @@ import {
   setPlayerClass,
 } from './engine'
 import { buildExportFileName, serializeSaveFile } from './save'
-import type { ClassId, CommandResult, GameState } from './types'
+import type { ClassId, CommandResult, GameState, InventorySlot } from './types'
+import {
+  getArtifactById,
+  getItemDisplayName,
+  getRandomArtifactCuriosityUrl,
+} from './artifacts'
 
 export function executeCommand(
   rawInput: string,
@@ -32,7 +37,7 @@ export function executeCommand(
         ok: true,
         message: [
           'Comandos disponíveis:',
-          'help, status, class <nome>, quests, upgrades, upgrade <tipo>, log [n], history [n], pause, resume, export, import',
+          'help, status, class <nome>, quests, upgrades, upgrade <tipo>, inventory, log [n], history [n], pause, resume, export, import',
         ].join('\n'),
       }
 
@@ -71,6 +76,24 @@ export function executeCommand(
         ok: true,
         message: formatDateHistory(state, args[0]),
       }
+
+    case 'inventory':
+    case 'inventario':
+    case 'inv':
+    case 'bag': {
+      const slots = buildInventorySlots(state)
+      return {
+        ok: true,
+        message:
+          slots.length > 0
+            ? 'Inventário aberto por categoria. Clique em uma relíquia para lore e curiosidade.'
+            : 'Inventário vazio por enquanto.',
+        sideEffect: {
+          type: 'inventory_view',
+          slots,
+        },
+      }
+    }
 
     case 'pause': {
       if (state.paused) {
@@ -303,4 +326,32 @@ function parseLimit(raw: string | undefined, fallback: number): number {
   }
 
   return Math.min(parsed, 40)
+}
+
+function buildInventorySlots(state: GameState): InventorySlot[] {
+  return Object.entries(state.inventory)
+    .filter(([, quantity]) => quantity > 0)
+    .map(([itemId, quantity]) => {
+      const artifact = getArtifactById(itemId)
+      return {
+        itemId,
+        label: getItemDisplayName(itemId),
+        quantity,
+        category: artifact ? ('reliquias' as const) : ('itens_venda' as const),
+        isArtifact: Boolean(artifact),
+        lore: artifact?.lore,
+        curiosityUrl: artifact ? getRandomArtifactCuriosityUrl(itemId) : undefined,
+      }
+    })
+    .sort((a, b) => {
+      if (a.category === 'reliquias' && b.category !== 'reliquias') {
+        return -1
+      }
+
+      if (a.category !== 'reliquias' && b.category === 'reliquias') {
+        return 1
+      }
+
+      return a.label.localeCompare(b.label)
+    })
 }

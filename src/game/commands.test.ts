@@ -45,4 +45,23 @@ describe('commands', () => {
     expect(result.ok).toBe(true)
     expect(result.message).toMatch(/\[(session|class)\]/i)
   })
+
+  it('inventory retorna grade com itens e lore de artefato', () => {
+    const base = createInitialGameState(new Date('2026-04-04T10:00:00.000Z'))
+    base.inventory['núcleo'] = 2
+    base.inventory['artifact:echo_core'] = 1
+
+    const result = executeCommand('inventory', base, new Date('2026-04-04T10:00:01.000Z'))
+    expect(result.ok).toBe(true)
+    expect(result.sideEffect?.type).toBe('inventory_view')
+    if (result.sideEffect?.type === 'inventory_view') {
+      expect(result.sideEffect.slots.length).toBeGreaterThan(0)
+      const artifactSlot = result.sideEffect.slots.find((slot) => slot.isArtifact)
+      const sellSlot = result.sideEffect.slots.find((slot) => slot.category === 'itens_venda')
+      expect(artifactSlot?.category).toBe('reliquias')
+      expect(artifactSlot?.lore).toBeTruthy()
+      expect(artifactSlot?.curiosityUrl).toMatch(/^https?:\/\//)
+      expect(sellSlot).toBeTruthy()
+    }
+  })
 })

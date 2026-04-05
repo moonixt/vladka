@@ -154,9 +154,25 @@ export interface CommandSideEffectImportPrompt {
   type: 'import_prompt'
 }
 
+export interface InventorySlot {
+  itemId: string
+  label: string
+  quantity: number
+  category: 'reliquias' | 'itens_venda'
+  isArtifact: boolean
+  lore?: string
+  curiosityUrl?: string
+}
+
+export interface CommandSideEffectInventoryView {
+  type: 'inventory_view'
+  slots: InventorySlot[]
+}
+
 export type CommandSideEffect =
   | CommandSideEffectExport
   | CommandSideEffectImportPrompt
+  | CommandSideEffectInventoryView
 
 export interface CommandResult {
   ok: boolean
