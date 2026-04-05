@@ -50,7 +50,7 @@ function App() {
     const resumed = applyOfflineProgress(cached, now)
     const state = registerSession(resumed.state, now, 'Sessão reaberta pelo operador.')
     const offlineMinutes = Math.floor(resumed.appliedMs / 60_000)
-
+// caguei
     return {
       state,
       lines: [
