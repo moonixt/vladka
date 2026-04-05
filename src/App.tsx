@@ -425,6 +425,10 @@ function getEnemySpritePath(enemyName: string): string | null {
     return 'src/assets/Xman.gif'
   }
 
+  if (normalized.includes('slime')) {
+    return 'src/assets/slime.gif'
+  }
+
   return 'src/assets/stone_axe-export.png'
 }
 
